@@ -395,6 +395,13 @@ body.embedded .repte-select-wrapper { flex: none; height: 50px; }
 body.embedded.view-classificacio .controls-row { display: none; }
 body.embedded main { padding-top: 24px; }
 
+/* Fix solapament botó "← Tornar" de l'App Reptes en desktop/landscape.
+   El botó ocupa fins a ~53px des de dalt; 64px deixa marge de seguretat.
+   En mòbil vertical no cal: el layout d'en Pablo ja respecta l'espai. */
+@media (min-width: 641px) {
+  body.embedded main { padding-top: 64px; }
+}
+
 /* ── TÍTOLS DE SECCIÓ ── */
 .section-heading {
   font-family: 'Bebas Neue', sans-serif; font-size: 1.35rem;

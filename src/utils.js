@@ -7,6 +7,22 @@ export function getInternalPoints(pos) {
 }
 
 // ── CLOUDINARY ────────────────────────────────────────────────────────────
+// Totes les fotos pujades des de l'App Reptes passen per un <canvas> que ja
+// les deixa "de peu" abans de pujar-les — però algunes (pujades abans d'un
+// fix a l'App Reptes, juliol 2026) van quedar amb els píxels correctes però
+// un tag EXIF Orientation obsolet, fent que Cloudinary les torni a girar en
+// servir-les. El flag `a_ignore` li diu a Cloudinary que no apliqui cap
+// rotació pròpia — és segur per a totes les fotos d'aquest projecte, cap
+// depèn de l'EXIF per mostrar-se bé. S'aplica al punt únic on es construeix
+// la URL (App.jsx) perquè thumbUrl/thumbSmUrl/Lightbox l'heretin automàtica-
+// ment sense haver-los de tocar un per un.
+export function noAutoRotateUrl(url) {
+  if (!url) return url
+  return url.includes('/upload/a_ignore/')
+    ? url
+    : url.replace('/upload/', '/upload/a_ignore/')
+}
+
 export function thumbUrl(url) {
   if (!url) return null
   return url.replace('/upload/', '/upload/w_240,h_180,c_fill,q_auto,f_auto/')

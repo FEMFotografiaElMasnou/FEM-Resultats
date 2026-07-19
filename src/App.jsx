@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { db } from './supabaseClient'
-import { getUrlParams, getInternalPoints, round2 } from './utils'
+import { getUrlParams, getInternalPoints, round2, noAutoRotateUrl } from './utils'
 import LoginOverlay from './components/LoginOverlay'
 import Topbar from './components/Topbar'
 import ResultsView from './components/ResultsView'
@@ -129,8 +129,8 @@ export default function App() {
         const tot = den ? round2((s.cre + s.com + s.tem) / (den * 3)) : 0
         return {
           foto:        p.file_name || '',
-          url:         p.file_url  || p.original_url || '',
-          urlOriginal: p.original_url || p.file_url  || '',
+          url:         noAutoRotateUrl(p.file_url  || p.original_url || ''),
+          urlOriginal: noAutoRotateUrl(p.original_url || p.file_url  || ''),
           usuari:      p.users?.display_name || '—',
           creativitat: cre, composicio: com, tematica: tem, notaFinal: tot,
         }
@@ -191,8 +191,8 @@ export default function App() {
           const tot = den ? round2((s.cre + s.com + s.tem) / (den * 3)) : 0
           return {
             userId: p.user_id, userName: p.users?.display_name || '—',
-            url: p.file_url || p.original_url || '',
-            urlOrig: p.original_url || p.file_url || '', notaFinal: tot,
+            url: noAutoRotateUrl(p.file_url || p.original_url || ''),
+            urlOrig: noAutoRotateUrl(p.original_url || p.file_url || ''), notaFinal: tot,
           }
         })
 

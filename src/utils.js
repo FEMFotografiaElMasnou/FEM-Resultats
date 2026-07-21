@@ -53,3 +53,89 @@ export function getUrlParams() {
     embedded: p.get('embedded') === 'true',
   }
 }
+
+// ── VOT EXPERT: MODES DE FILTRE ──────────────────────────────────────────
+// Des de juliol 2026 la taula `users` pot tenir role = 'expert' a més
+// d'`admin`/`participant`. Aquests tres modes decideixen quin subconjunt
+// de votants elegibles s'utilitza per calcular notes i rànquings — la
+// fórmula és sempre la mateixa (§5 del handoff), només canvia la població
+// de votants que hi entra.
+export const VOTE_MODES = {
+  TOTS:   'tots',    // tots els votants elegibles, sense distinció (per defecte / comportament històric)
+  SOCIS:  'socis',   // tots els elegibles excepte els d'rol 'expert'
+  EXPERT: 'expert',  // només els elegibles amb rol 'expert'
+}
+
+export const VOTE_MODE_LABELS = {
+  [VOTE_MODES.TOTS]:   'Tots els vots',
+  [VOTE_MODES.SOCIS]:  'Vots dels socis',
+  [VOTE_MODES.EXPERT]: 'Vot expert',
+}
+
+export const VOTE_MODE_ORDER = [VOTE_MODES.TOTS, VOTE_MODES.SOCIS, VOTE_MODES.EXPERT]
+
+// eligibleUsers: [{ id, role }] — indica si entre els elegibles n'hi ha cap d'expert.
+export function hasExpertAmong(eligibleUsers) {
+  return (eligibleUsers || []).some(u => u.role === 'expert')
+}
+
+// Retorna els user_id elegibles corresponents al mode de vot triat.
+export function eligibleIdsForMode(eligibleUsers, mode) {
+  const users = eligibleUsers || []
+  if (mode === VOTE_MODES.EXPERT) return users.filter(u => u.role === 'expert').map(u => u.id)
+  if (mode === VOTE_MODES.SOCIS)  return users.filter(u => u.role !== 'expert').map(u => u.id)
+  return users.map(u => u.id)
+}
+
+// ── CÀLCUL DE NOTES PER FOTO ──────────────────────────────────────────────
+// Mateixa fórmula d'sempre (§5.1 del handoff): el denominador és el total
+// d'elegibles del subconjunt triat, no el nombre de vots realment rebuts.
+// photos: [{ id, ... }]   votes: [{ photo_id, user_id, creativity, composition, theme }]
+// eligibleIds: user_id que compten pel denominador i que es tenen en compte als sumatoris.
+export function scorePhotos(photos, votes, eligibleIds) {
+  const eligibleSet   = new Set(eligibleIds)
+  const totalEligible = eligibleIds.length
+
+  const sumsByPhoto = {}
+  for (const v of votes) {
+    if (!eligibleSet.has(v.user_id)) continue
+    if (!sumsByPhoto[v.photo_id]) sumsByPhoto[v.photo_id] = { cre: 0, com: 0, tem: 0 }
+    sumsByPhoto[v.photo_id].cre += v.creativity  || 0
+    sumsByPhoto[v.photo_id].com += v.composition || 0
+    sumsByPhoto[v.photo_id].tem += v.theme       || 0
+  }
+
+  return (photos || []).map(p => {
+    const s   = sumsByPhoto[p.id] || { cre: 0, com: 0, tem: 0 }
+    const den = totalEligible > 0 ? totalEligible : null
+    const cre = den ? round2(s.cre / den) : 0
+    const com = den ? round2(s.com / den) : 0
+    const tem = den ? round2(s.tem / den) : 0
+    const tot = den ? round2((s.cre + s.com + s.tem) / (den * 3)) : 0
+    return { ...p, creativitat: cre, composicio: com, tematica: tem, notaFinal: tot }
+  })
+}
+
+// ── RÀNQUING (dense ranking) ──────────────────────────────────────────────
+// Ordena descendent per `field` i assigna posicions denses (empats
+// comparteixen posició; la següent puntuació diferent salta a l'enter
+// immediatament següent — mateixa regla d'sempre, §5.2/§5.3 del handoff).
+// Indica si el subconjunt de vots elegibles ha emès com a mínim un vot
+// efectiu (una fila a `votes`) per a aquest repte i mode. Cobreix tant
+// "ningú elegible" com "hi ha algú elegible però no ha puntuat cap foto"
+// (p. ex. l'expert envia la votació com a no-esborrany sense valorar res).
+// Si és fals, aquest repte no ha d'aportar punts a ningú a la Classificació
+// General sota aquest filtre.
+export function hasEffectiveVotes(votes, eligibleIds) {
+  const eligibleSet = new Set(eligibleIds)
+  return (votes || []).some(v => eligibleSet.has(v.user_id))
+}
+
+export function rankByField(rows, field) {
+  const sorted = [...rows].sort((a, b) => (b[field] ?? 0) - (a[field] ?? 0))
+  let pos = 1
+  return sorted.map((row, i) => {
+    if (i > 0 && (row[field] ?? 0) < (sorted[i - 1][field] ?? 0)) pos++
+    return { ...row, position: pos }
+  })
+}

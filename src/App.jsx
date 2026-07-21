@@ -1,6 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { db } from './supabaseClient'
-import { getUrlParams, getInternalPoints, round2, noAutoRotateUrl } from './utils'
+import {
+  getUrlParams, getInternalPoints, noAutoRotateUrl,
+  VOTE_MODES, hasExpertAmong, eligibleIdsForMode, scorePhotos, rankByField, hasEffectiveVotes,
+} from './utils'
 import LoginOverlay from './components/LoginOverlay'
 import Topbar from './components/Topbar'
 import ResultsView from './components/ResultsView'
@@ -8,6 +11,20 @@ import GeneralTable from './components/GeneralTable'
 import Lightbox from './components/Lightbox'
 
 const { role: urlRole, view: urlView, embedded } = getUrlParams()
+
+// Retorna [{ id, role }] pels user_id indicats (deduplicats). S'evita
+// l'embedding `seguiment_votacio -> users(role)` via select perquè
+// PostgREST necessita una relació (FK) definida a l'esquema entre
+// seguiment_votacio i users, i no n'hi ha cap — es resol amb una segona
+// consulta senzilla a `users` i un merge en client.
+async function withRoles(svRows) {
+  const ids = [...new Set((svRows || []).map(r => r.user_id))]
+  if (ids.length === 0) return []
+  const { data: userRows, error } = await db.from('users').select('id, role').in('id', ids)
+  if (error) throw error
+  const roleById = Object.fromEntries((userRows || []).map(u => [u.id, u.role]))
+  return ids.map(id => ({ id, role: roleById[id] || null }))
+}
 
 export default function App() {
   // ── AUTH ──────────────────────────────────────────────────────────────────
@@ -17,13 +34,16 @@ export default function App() {
 
   // ── DADES ─────────────────────────────────────────────────────────────────
   const [objectives, setObjectives]     = useState([])
+  const [generalObjectives, setGeneralObjectives] = useState([]) // reptes finalitzats, per a la taula de Classificació General
   const [selectedId, setSelectedId]     = useState('')
-  const [allData, setAllData]           = useState([])
-  const [participants, setParticipants] = useState([])
+  const [rawResults, setRawResults]     = useState(null) // { photos, votes, eligibleUsers } del repte actual
+  const [rawGeneral, setRawGeneral]     = useState([])   // [{ objective, photos, votes, eligibleUsers }]
 
   // ── UI ────────────────────────────────────────────────────────────────────
-  const [view, setView]           = useState('repte')   // 'repte' | 'general'
-  const [sortField, setSortField] = useState('notaFinal')
+  const [view, setView]                     = useState('repte')   // 'repte' | 'general'
+  const [sortField, setSortField]           = useState('notaFinal')
+  const [voteFilter, setVoteFilter]         = useState(VOTE_MODES.TOTS)
+  const [generalVoteFilter, setGeneralVoteFilter] = useState(VOTE_MODES.TOTS)
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState(null)
   const [lightbox, setLightbox]   = useState(null)      // { url, caption }
@@ -48,8 +68,10 @@ export default function App() {
     setUser(null)
     setIsAdmin(false)
     setLoggedIn(false)
-    setAllData([])
+    setRawResults(null)
+    setRawGeneral([])
     setObjectives([])
+    setGeneralObjectives([])
     setSelectedId('')
     setView('repte')
   }
@@ -75,6 +97,9 @@ export default function App() {
   }, [objectives])
 
   // ── CARREGA RESULTATS D'UN REPTE ──────────────────────────────────────────
+  // Es guarden les dades crues (fotos, vots amb user_id, elegibles amb rol) i
+  // la nota/rànquing final es deriva més avall (useMemo) segons el mode de
+  // vot triat — així el switch Tots/Socis/Expert no torna a consultar Supabase.
   const loadResults = useCallback(async (objectiveId) => {
     if (!objectiveId) return
     setLoading(true)
@@ -87,8 +112,8 @@ export default function App() {
         .eq('es_esborrany', false)
       if (e1) throw e1
 
-      const eligibleIds   = (svRows || []).map(r => r.user_id)
-      const totalEligible = eligibleIds.length
+      const eligibleUsers = await withRoles(svRows)
+      const eligibleIdsAll = eligibleUsers.map(u => u.id)
 
       const { data: photos, error: e2 } = await db
         .from('photo_submissions')
@@ -97,47 +122,29 @@ export default function App() {
       if (e2) throw e2
 
       let votes = []
-      if (eligibleIds.length > 0) {
+      if (eligibleIdsAll.length > 0) {
         const { data: vRows, error: e3 } = await db
           .from('votes')
-          .select('photo_id, creativity, theme, composition')
+          .select('photo_id, creativity, theme, composition, user_id')
           .eq('objective_id', objectiveId)
-          .in('user_id', eligibleIds)
+          .in('user_id', eligibleIdsAll)
         if (e3) throw e3
         votes = vRows || []
       }
 
-      const { data: allUsers, error: e4 } = await db.from('users').select('id').order('id')
-      if (e4) throw e4
-      const userRank = {}
-      ;(allUsers || []).forEach((u, i) => { userRank[u.id] = i + 1 })
+      const mappedPhotos = (photos || []).map(p => ({
+        id:          p.id,
+        foto:        p.file_name || '',
+        url:         noAutoRotateUrl(p.file_url  || p.original_url || ''),
+        urlOriginal: noAutoRotateUrl(p.original_url || p.file_url  || ''),
+        usuari:      p.users?.display_name || '—',
+      }))
 
-      const sumsByPhoto = {}
-      for (const v of votes) {
-        if (!sumsByPhoto[v.photo_id]) sumsByPhoto[v.photo_id] = { cre: 0, com: 0, tem: 0 }
-        sumsByPhoto[v.photo_id].cre += v.creativity  || 0
-        sumsByPhoto[v.photo_id].com += v.composition || 0
-        sumsByPhoto[v.photo_id].tem += v.theme       || 0
-      }
-
-      const result = (photos || []).map(p => {
-        const s   = sumsByPhoto[p.id] || { cre: 0, com: 0, tem: 0 }
-        const den = totalEligible > 0 ? totalEligible : null
-        const cre = den ? round2(s.cre / den) : 0
-        const com = den ? round2(s.com / den) : 0
-        const tem = den ? round2(s.tem / den) : 0
-        const tot = den ? round2((s.cre + s.com + s.tem) / (den * 3)) : 0
-        return {
-          foto:        p.file_name || '',
-          url:         noAutoRotateUrl(p.file_url  || p.original_url || ''),
-          urlOriginal: noAutoRotateUrl(p.original_url || p.file_url  || ''),
-          usuari:      p.users?.display_name || '—',
-          creativitat: cre, composicio: com, tematica: tem, notaFinal: tot,
-        }
-      })
-      setAllData(result)
+      setRawResults({ photos: mappedPhotos, votes, eligibleUsers })
+      setVoteFilter(VOTE_MODES.TOTS) // reset del filtre en canviar de repte
     } catch (err) {
       setError(err.message || 'Error desconegut')
+      setRawResults(null)
     } finally {
       setLoading(false)
     }
@@ -147,6 +154,22 @@ export default function App() {
     if (view === 'repte' && selectedId) loadResults(selectedId)
   }, [selectedId, view, loadResults])
 
+  // Hi ha algun elegible amb rol expert en aquest repte?
+  const hasExpertResults = useMemo(
+    () => rawResults ? hasExpertAmong(rawResults.eligibleUsers) : false,
+    [rawResults]
+  )
+
+  // Nota/rànquing derivats del mode de vot triat (Tots/Socis/Expert).
+  // Si el repte no té cap expert, els tres modes donen el mateix resultat:
+  // es força TOTS perquè el valor de l'estat no afecti el càlcul.
+  const allData = useMemo(() => {
+    if (!rawResults) return []
+    const effectiveMode = hasExpertResults ? voteFilter : VOTE_MODES.TOTS
+    const ids = eligibleIdsForMode(rawResults.eligibleUsers, effectiveMode)
+    return scorePhotos(rawResults.photos, rawResults.votes, ids)
+  }, [rawResults, voteFilter, hasExpertResults])
+
   // ── CARREGA CLASSIFICACIÓ GENERAL ─────────────────────────────────────────
   const loadGeneral = useCallback(async () => {
     setLoading(true)
@@ -155,14 +178,14 @@ export default function App() {
       const { data: objs, error: e } = await db
         .from('objectives').select('id, name').eq('status', 'finished').order('name')
       if (e) throw e
-      if (!objs?.length) { setParticipants([]); setLoading(false); return }
+      if (!objs?.length) { setRawGeneral([]); setGeneralObjectives([]); setLoading(false); return }
 
       const objectiveData = await Promise.all(objs.map(async obj => {
         const { data: svRows } = await db
           .from('seguiment_votacio').select('user_id')
           .eq('objective_id', obj.id).eq('es_esborrany', false)
-        const eligibleIds   = (svRows || []).map(r => r.user_id)
-        const totalEligible = eligibleIds.length
+        const eligibleUsers  = await withRoles(svRows)
+        const eligibleIdsAll = eligibleUsers.map(u => u.id)
 
         const { data: photos } = await db
           .from('photo_submissions')
@@ -170,66 +193,27 @@ export default function App() {
           .eq('objective_id', obj.id)
 
         let votes = []
-        if (eligibleIds.length > 0) {
+        if (eligibleIdsAll.length > 0) {
           const { data: vRows } = await db
-            .from('votes').select('photo_id, creativity, theme, composition')
-            .eq('objective_id', obj.id).in('user_id', eligibleIds)
+            .from('votes').select('photo_id, creativity, theme, composition, user_id')
+            .eq('objective_id', obj.id).in('user_id', eligibleIdsAll)
           votes = vRows || []
         }
 
-        const sumsByPhoto = {}
-        for (const v of votes) {
-          if (!sumsByPhoto[v.photo_id]) sumsByPhoto[v.photo_id] = { cre: 0, com: 0, tem: 0 }
-          sumsByPhoto[v.photo_id].cre += v.creativity  || 0
-          sumsByPhoto[v.photo_id].com += v.composition || 0
-          sumsByPhoto[v.photo_id].tem += v.theme       || 0
-        }
+        const mappedPhotos = (photos || []).map(p => ({
+          id:       p.id,
+          userId:   p.user_id,
+          userName: p.users?.display_name || '—',
+          url:      noAutoRotateUrl(p.file_url || p.original_url || ''),
+          urlOrig:  noAutoRotateUrl(p.original_url || p.file_url || ''),
+        }))
 
-        const photoResults = (photos || []).map(p => {
-          const s   = sumsByPhoto[p.id] || { cre: 0, com: 0, tem: 0 }
-          const den = totalEligible > 0 ? totalEligible : null
-          const tot = den ? round2((s.cre + s.com + s.tem) / (den * 3)) : 0
-          return {
-            userId: p.user_id, userName: p.users?.display_name || '—',
-            url: noAutoRotateUrl(p.file_url || p.original_url || ''),
-            urlOrig: noAutoRotateUrl(p.original_url || p.file_url || ''), notaFinal: tot,
-          }
-        })
-
-        photoResults.sort((a, b) => b.notaFinal - a.notaFinal)
-        let densePos = 1
-        for (let i = 0; i < photoResults.length; i++) {
-          if (i > 0 && photoResults[i].notaFinal < photoResults[i - 1].notaFinal) densePos++
-          photoResults[i].position       = densePos
-          photoResults[i].internalPoints = getInternalPoints(densePos)
-        }
-        return { objective: obj, standings: photoResults }
+        return { objective: obj, photos: mappedPhotos, votes, eligibleUsers }
       }))
 
-      const userMap = {}
-      for (const { objective, standings } of objectiveData) {
-        for (const item of standings) {
-          if (!userMap[item.userId]) {
-            userMap[item.userId] = { userId: item.userId, userName: item.userName, internalTotal: 0, reptes: {} }
-          }
-          userMap[item.userId].internalTotal += item.internalPoints
-          userMap[item.userId].reptes[objective.id] = {
-            displayPoints: Math.floor(item.internalPoints),
-            url: item.url, urlOrig: item.urlOrig, position: item.position,
-          }
-        }
-      }
-
-      const list = Object.values(userMap)
-      list.sort((a, b) => b.internalTotal - a.internalTotal)
-      list.forEach(p => { p.displayTotal = Math.floor(p.internalTotal) })
-      let genPos = 1
-      for (let i = 0; i < list.length; i++) {
-        if (i > 0 && list[i].displayTotal < list[i - 1].displayTotal) genPos++
-        list[i].generalPosition = genPos
-      }
-      setParticipants(list)
-      setObjectives(objs)
+      setRawGeneral(objectiveData)
+      setGeneralObjectives(objs)
+      setGeneralVoteFilter(VOTE_MODES.TOTS) // reset del filtre en recarregar la general
     } catch (err) {
       setError(err.message || 'Error desconegut')
     } finally {
@@ -240,6 +224,55 @@ export default function App() {
   useEffect(() => {
     if (view === 'general') loadGeneral()
   }, [view, loadGeneral])
+
+  // Es mostra el selector de mode de vot a la Classificació General només si
+  // ALGUN dels reptes finalitzats té almenys un elegible amb rol expert.
+  const generalHasExpert = useMemo(
+    () => rawGeneral.some(o => hasExpertAmong(o.eligibleUsers)),
+    [rawGeneral]
+  )
+
+  // Classificació derivada del mode de vot triat. Cada repte es puntua de
+  // manera independent amb el subconjunt de votants del mode triat (mateixa
+  // fórmula i mateix dense ranking d'sempre) i després s'acumulen els punts
+  // interns per soci, exactament com abans.
+  const participants = useMemo(() => {
+    if (!rawGeneral.length) return []
+    const effectiveMode = generalHasExpert ? generalVoteFilter : VOTE_MODES.TOTS
+
+    const userMap = {}
+    for (const { objective, photos, votes, eligibleUsers } of rawGeneral) {
+      const ids = eligibleIdsForMode(eligibleUsers, effectiveMode)
+      // Cap vot efectiu del subconjunt triat en aquest repte (ni elegibles,
+      // ni algú elegible que no ha puntuat res): el repte no aporta punts a
+      // ningú sota aquest filtre, en comptes de repartir el màxim per empat.
+      if (!hasEffectiveVotes(votes, ids)) continue
+      const scored = scorePhotos(photos, votes, ids)
+      const ranked = rankByField(scored, 'notaFinal')
+
+      for (const item of ranked) {
+        const internalPoints = getInternalPoints(item.position)
+        if (!userMap[item.userId]) {
+          userMap[item.userId] = { userId: item.userId, userName: item.userName, internalTotal: 0, reptes: {} }
+        }
+        userMap[item.userId].internalTotal += internalPoints
+        userMap[item.userId].reptes[objective.id] = {
+          displayPoints: Math.floor(internalPoints),
+          url: item.url, urlOrig: item.urlOrig, position: item.position,
+        }
+      }
+    }
+
+    const list = Object.values(userMap)
+    list.sort((a, b) => b.internalTotal - a.internalTotal)
+    list.forEach(p => { p.displayTotal = Math.floor(p.internalTotal) })
+    let genPos = 1
+    for (let i = 0; i < list.length; i++) {
+      if (i > 0 && list[i].displayTotal < list[i - 1].displayTotal) genPos++
+      list[i].generalPosition = genPos
+    }
+    return list
+  }, [rawGeneral, generalVoteFilter, generalHasExpert])
 
   // ── RENDER ────────────────────────────────────────────────────────────────
   const selectedName = objectives.find(o => o.id === selectedId)?.name || ''
@@ -271,7 +304,6 @@ export default function App() {
               className="repte-btn-main"
               onClick={() => {
                 if (view === 'general') setView('repte')
-                else setView('general')
               }}
             >
               <span className="repte-back-arrow">‹</span>
@@ -315,13 +347,19 @@ export default function App() {
             data={allData}
             sortField={sortField}
             onSortChange={setSortField}
+            voteFilter={voteFilter}
+            onVoteFilterChange={setVoteFilter}
+            hasExpert={hasExpertResults}
             onOpenLightbox={(url, caption) => setLightbox({ url, caption })}
           />
         )}
         {!loading && !error && view === 'general' && (
           <GeneralTable
             participants={participants}
-            objectives={objectives}
+            objectives={generalObjectives}
+            voteFilter={generalVoteFilter}
+            onVoteFilterChange={setGeneralVoteFilter}
+            hasExpert={generalHasExpert}
             onOpenLightbox={(url, caption) => setLightbox({ url, caption })}
           />
         )}

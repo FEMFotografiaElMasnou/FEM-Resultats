@@ -1,28 +1,55 @@
-import { thumbSmUrl } from '../utils'
+import { thumbSmUrl, VOTE_MODES, VOTE_MODE_LABELS, VOTE_MODE_ORDER } from '../utils'
 
-export default function GeneralTable({ participants, objectives, onOpenLightbox }) {
+export default function GeneralTable({
+  participants, objectives,
+  voteFilter, onVoteFilterChange, hasExpert,
+  onOpenLightbox,
+}) {
   if (!participants.length) {
     return <div className="state-msg">Cap resultat disponible.</div>
   }
 
   return (
-    <div className="gen-table">
-      <div className="gen-header">
-        <div className="gen-header-pos">POS</div>
-        <div className="gen-header-name">SOCI/A</div>
-        <div className="gen-header-total">TOTAL</div>
-        <div className="gen-header-reptes">REPTES</div>
+    <>
+      <div className="filters-row">
+        <div className="filter-group">
+          <div className="filter-group-label">Vots a considerar</div>
+          {hasExpert ? (
+            <div className="filter-select-wrap">
+              <select
+                className="filter-select"
+                value={voteFilter}
+                onChange={e => onVoteFilterChange(e.target.value)}
+              >
+                {VOTE_MODE_ORDER.map(mode => (
+                  <option key={mode} value={mode}>{VOTE_MODE_LABELS[mode]}</option>
+                ))}
+              </select>
+              <span className="filter-select-arrow">▾</span>
+            </div>
+          ) : (
+            <div className="filter-static">{VOTE_MODE_LABELS[VOTE_MODES.SOCIS]}</div>
+          )}
+        </div>
       </div>
-      {participants.map((p, idx) => (
-        <GenRow
-          key={p.userId}
-          p={p}
-          objectives={objectives}
-          idx={idx}
-          onOpenLightbox={onOpenLightbox}
-        />
-      ))}
-    </div>
+      <div className="gen-table">
+        <div className="gen-header">
+          <div className="gen-header-pos">POS</div>
+          <div className="gen-header-name">SOCI/A</div>
+          <div className="gen-header-total">TOTAL</div>
+          <div className="gen-header-reptes">REPTES</div>
+        </div>
+        {participants.map((p, idx) => (
+          <GenRow
+            key={p.userId}
+            p={p}
+            objectives={objectives}
+            idx={idx}
+            onOpenLightbox={onOpenLightbox}
+          />
+        ))}
+      </div>
+    </>
   )
 }
 

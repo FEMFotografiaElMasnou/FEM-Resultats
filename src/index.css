@@ -90,8 +90,8 @@ main {
 .repte-select-wrapper.tab-active { background: var(--accent-dim); border-color: var(--accent); }
 .repte-btn-main {
   flex: 1; display: flex; align-items: center; gap: 8px; padding: 0 16px; cursor: pointer;
-  font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: .85rem;
-  letter-spacing: .12em; color: var(--muted);
+  font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 1rem;
+  letter-spacing: .1em; color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: none;
   transition: background .15s;
 }
@@ -121,7 +121,7 @@ main {
 .btn-general {
   flex: 1 1 0; min-width: 180px; background: var(--card); border: 1px solid var(--border);
   border-radius: 6px; color: var(--muted); font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 700; font-size: .85rem; letter-spacing: .12em;
+  font-weight: 700; font-size: 1rem; letter-spacing: .1em;
   padding: 14px 20px; cursor: pointer; transition: all .2s; min-height: 50px;
 }
 .btn-general:hover { border-color: var(--accent); color: var(--text); }
@@ -131,7 +131,7 @@ main {
 .filters-row { display: flex; gap: 24px; margin-bottom: 32px; flex-wrap: wrap; }
 .filter-group { display: flex; flex-direction: column; gap: 10px; min-width: 200px; }
 .filter-group-label {
-  font-family: 'Barlow Condensed', sans-serif; font-size: .95rem; letter-spacing: .14em; color: var(--text); opacity: .75;
+  font-family: 'Barlow Condensed', sans-serif; font-size: 1.05rem; letter-spacing: .12em; color: var(--text); opacity: .75;
 }
 .filter-select-wrap { position: relative; display: flex; }
 .filter-select {
@@ -139,7 +139,7 @@ main {
   background: var(--card);
   border: 1px solid var(--border); border-radius: 6px;
   color: var(--text); font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-  font-size: .85rem; letter-spacing: .12em;
+  font-size: 1rem; letter-spacing: .1em;
   padding: 14px 36px 14px 18px; cursor: pointer; transition: border-color .18s;
   min-height: 50px; width: 100%; box-sizing: border-box;
 }
@@ -147,12 +147,12 @@ main {
 .filter-select:focus  { outline: none; border-color: var(--accent); }
 .filter-select-arrow {
   position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
-  color: var(--muted); font-size: .85rem; line-height: 1; pointer-events: none;
+  color: var(--muted); font-size: .95rem; line-height: 1; pointer-events: none;
 }
 .filter-static {
   background: var(--card); border: 1px solid var(--border); border-radius: 6px;
   color: var(--muted); font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-  font-size: .85rem; letter-spacing: .12em;
+  font-size: 1rem; letter-spacing: .1em;
   padding: 14px 20px; min-height: 50px; display: flex; align-items: center;
   box-sizing: border-box;
 }
@@ -215,7 +215,7 @@ main {
 .card-criteria { display: flex; gap: 24px; flex-wrap: wrap; }
 .criterion { display: flex; flex-direction: column; gap: 4px; }
 .criterion-label {
-  font-family: 'Barlow Condensed', sans-serif; font-size: .82rem; letter-spacing: .12em; color: var(--text); opacity: .65;
+  font-family: 'Barlow Condensed', sans-serif; font-size: .95rem; letter-spacing: .1em; color: var(--text); opacity: .7;
 }
 .criterion-row { display: flex; align-items: center; gap: 6px; }
 .criterion-val {
@@ -237,7 +237,7 @@ main {
   min-width: 140px; align-self: stretch;
 }
 .total-label {
-  font-family: 'Barlow Condensed', sans-serif; font-size: .82rem; letter-spacing: .18em; color: var(--text); opacity: .6;
+  font-family: 'Barlow Condensed', sans-serif; font-size: .95rem; letter-spacing: .14em; color: var(--text); opacity: .65;
 }
 .total-stars { display: flex; gap: 2px; }
 .total-stars .star { font-size: 1rem; }
@@ -249,7 +249,7 @@ main {
   display: grid; grid-template-columns: 64px var(--soci-width, 160px) 90px 1fr;
   padding: 12px 16px; background: rgba(75,142,245,.08); border: 1px solid var(--border);
   border-radius: 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-  font-size: .82rem; letter-spacing: .18em; color: var(--accent);
+  font-size: .95rem; letter-spacing: .14em; color: var(--accent);
 }
 .gen-header-pos   { text-align: center; }
 .gen-header-name  { padding-left: 12px; }
@@ -318,7 +318,7 @@ main {
   color: var(--text); line-height: 1; padding: 0 10px; flex: 1;
 }
 .gen-repte-name {
-  font-family: 'Barlow Condensed', sans-serif; font-size: .78rem; letter-spacing: .1em; color: var(--text); opacity: .6;
+  font-family: 'Barlow Condensed', sans-serif; font-size: .9rem; letter-spacing: .08em; color: var(--text); opacity: .68;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   padding: 3px 8px 4px; border-top: 1px solid var(--border); width: 100%;
 }
@@ -340,7 +340,7 @@ main {
 }
 .lightbox.open .lightbox-img { transform: scale(1); }
 .lightbox-caption {
-  font-family: 'Barlow Condensed', sans-serif; font-size: 1.1rem; letter-spacing: .1em; color: rgba(255,255,255,.6); text-align: center;
+  font-family: 'Barlow Condensed', sans-serif; font-size: 1.1rem; letter-spacing: .1em; color: rgba(255,255,255,.8); text-align: center;
 }
 .lightbox-close {
   position: fixed; top: 20px; right: 24px; background: none; border: none;

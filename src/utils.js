@@ -116,6 +116,14 @@ export function scorePhotos(photos, votes, eligibleIds) {
   })
 }
 
+// ── TEXT DEL LIGHTBOX ─────────────────────────────────────────────────────
+// "Nom Autor - Text de la foto (Repte)" si hi ha caption; si no,
+// "Nom Autor (Repte)". El nom del repte s'omet si no se'n coneix el nom.
+export function buildLightboxCaption(authorName, caption, objectiveName) {
+  const base = caption ? `${authorName} - ${caption}` : authorName
+  return objectiveName ? `${base} (${objectiveName})` : base
+}
+
 // ── RÀNQUING (dense ranking) ──────────────────────────────────────────────
 // Ordena descendent per `field` i assigna posicions denses (empats
 // comparteixen posició; la següent puntuació diferent salta a l'enter

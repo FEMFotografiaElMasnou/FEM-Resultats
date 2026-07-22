@@ -1,4 +1,4 @@
-import { thumbSmUrl, VOTE_MODES, VOTE_MODE_LABELS, VOTE_MODE_ORDER } from '../utils'
+import { thumbSmUrl, VOTE_MODES, VOTE_MODE_LABELS, VOTE_MODE_ORDER, buildLightboxCaption } from '../utils'
 
 export default function GeneralTable({
   participants, objectives,
@@ -34,10 +34,10 @@ export default function GeneralTable({
       </div>
       <div className="gen-table">
         <div className="gen-header">
-          <div className="gen-header-pos">POS</div>
-          <div className="gen-header-name">SOCI/A</div>
-          <div className="gen-header-total">TOTAL</div>
-          <div className="gen-header-reptes">REPTES</div>
+          <div className="gen-header-pos">Pos</div>
+          <div className="gen-header-name">Soci/a</div>
+          <div className="gen-header-total">Total</div>
+          <div className="gen-header-reptes">Reptes</div>
         </div>
         {participants.map((p, idx) => (
           <GenRow
@@ -91,7 +91,7 @@ function GenRow({ p, objectives, idx, onOpenLightbox }) {
                 <div className="gen-repte-top">
                   <div
                     className="gen-repte-thumb"
-                    onClick={() => onOpenLightbox(entry.urlOrig || entry.url, `${p.userName}  ·  ${obj.name}`)}
+                    onClick={() => onOpenLightbox(entry.urlOrig || entry.url, buildLightboxCaption(p.userName, entry.caption, obj.name))}
                   >
                     {thumb && <img src={thumb} alt="" loading="lazy" />}
                     <div className="zoom-icon">🔍</div>

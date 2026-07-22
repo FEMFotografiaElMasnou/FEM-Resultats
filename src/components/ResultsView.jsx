@@ -1,5 +1,5 @@
 import Stars from './Stars'
-import { thumbUrl, VOTE_MODES, VOTE_MODE_LABELS, VOTE_MODE_ORDER } from '../utils'
+import { thumbUrl, VOTE_MODES, VOTE_MODE_LABELS, VOTE_MODE_ORDER, buildLightboxCaption } from '../utils'
 
 const SORT_OPTIONS = [
   { field: 'notaFinal',   label: 'Total' },
@@ -9,7 +9,7 @@ const SORT_OPTIONS = [
 ]
 
 export default function ResultsView({
-  data, sortField, onSortChange,
+  data, repteName, sortField, onSortChange,
   voteFilter, onVoteFilterChange, hasExpert,
   onOpenLightbox,
 }) {
@@ -27,22 +27,6 @@ export default function ResultsView({
   return (
     <>
       <div id="sortSection" className="filters-row">
-        <div className="filter-group">
-          <div className="filter-group-label">Ordenar per</div>
-          <div className="filter-select-wrap">
-            <select
-              className="filter-select"
-              value={sortField}
-              onChange={e => onSortChange(e.target.value)}
-            >
-              {SORT_OPTIONS.map(({ field, label }) => (
-                <option key={field} value={field}>{label}</option>
-              ))}
-            </select>
-            <span className="filter-select-arrow">▾</span>
-          </div>
-        </div>
-
         <div className="filter-group">
           <div className="filter-group-label">Vots a considerar</div>
           {hasExpert ? (
@@ -62,17 +46,33 @@ export default function ResultsView({
             <div className="filter-static">{VOTE_MODE_LABELS[VOTE_MODES.SOCIS]}</div>
           )}
         </div>
+
+        <div className="filter-group">
+          <div className="filter-group-label">Ordenar per</div>
+          <div className="filter-select-wrap">
+            <select
+              className="filter-select"
+              value={sortField}
+              onChange={e => onSortChange(e.target.value)}
+            >
+              {SORT_OPTIONS.map(({ field, label }) => (
+                <option key={field} value={field}>{label}</option>
+              ))}
+            </select>
+            <span className="filter-select-arrow">▾</span>
+          </div>
+        </div>
       </div>
       <div className="cards-list">
         {withPos.map(({ row, pos }) => (
-          <PhotoCard key={row.foto + row.usuari} row={row} pos={pos} onOpenLightbox={onOpenLightbox} />
+          <PhotoCard key={row.foto + row.usuari} row={row} pos={pos} repteName={repteName} onOpenLightbox={onOpenLightbox} />
         ))}
       </div>
     </>
   )
 }
 
-function PhotoCard({ row, pos, onOpenLightbox }) {
+function PhotoCard({ row, pos, repteName, onOpenLightbox }) {
   const posClass = pos === 1 ? 'top1' : pos === 2 ? 'top2' : pos === 3 ? 'top3' : ''
   const thumb    = thumbUrl(row.url)
   const original = row.urlOriginal || row.url
@@ -80,7 +80,7 @@ function PhotoCard({ row, pos, onOpenLightbox }) {
   return (
     <div className="photo-card" style={{ animationDelay: `${(pos - 1) * 0.05}s` }}>
       <div className={`card-pos ${posClass}`}>{pos}</div>
-      <div className="card-thumb" onClick={() => onOpenLightbox(original, row.usuari)}>
+      <div className="card-thumb" onClick={() => onOpenLightbox(original, buildLightboxCaption(row.usuari, row.caption, repteName))}>
         {thumb
           ? <img src={thumb} alt={row.usuari} loading="lazy" />
           : <div className="card-thumb-placeholder">📷</div>

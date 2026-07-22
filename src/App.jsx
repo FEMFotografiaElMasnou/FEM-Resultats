@@ -42,8 +42,7 @@ export default function App() {
   // ── UI ────────────────────────────────────────────────────────────────────
   const [view, setView]                     = useState('repte')   // 'repte' | 'general'
   const [sortField, setSortField]           = useState('notaFinal')
-  const [voteFilter, setVoteFilter]         = useState(VOTE_MODES.TOTS)
-  const [generalVoteFilter, setGeneralVoteFilter] = useState(VOTE_MODES.TOTS)
+  const [voteFilter, setVoteFilter]         = useState(VOTE_MODES.TOTS) // compartit entre Resultats i Classificació General
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState(null)
   const [lightbox, setLightbox]   = useState(null)      // { url, caption }
@@ -117,7 +116,7 @@ export default function App() {
 
       const { data: photos, error: e2 } = await db
         .from('photo_submissions')
-        .select('id, file_name, file_url, original_url, user_id, users(display_name)')
+        .select('id, file_name, file_url, original_url, caption, user_id, users(display_name)')
         .eq('objective_id', objectiveId)
       if (e2) throw e2
 
@@ -138,10 +137,10 @@ export default function App() {
         url:         noAutoRotateUrl(p.file_url  || p.original_url || ''),
         urlOriginal: noAutoRotateUrl(p.original_url || p.file_url  || ''),
         usuari:      p.users?.display_name || '—',
+        caption:     p.caption || '',
       }))
 
       setRawResults({ photos: mappedPhotos, votes, eligibleUsers })
-      setVoteFilter(VOTE_MODES.TOTS) // reset del filtre en canviar de repte
     } catch (err) {
       setError(err.message || 'Error desconegut')
       setRawResults(null)
@@ -175,8 +174,9 @@ export default function App() {
     setLoading(true)
     setError(null)
     try {
-      const { data: objs, error: e } = await db
-        .from('objectives').select('id, name').eq('status', 'finished').order('name')
+      let objQuery = db.from('objectives').select('id, name').order('name')
+      if (!isAdmin) objQuery = objQuery.eq('status', 'finished')
+      const { data: objs, error: e } = await objQuery
       if (e) throw e
       if (!objs?.length) { setRawGeneral([]); setGeneralObjectives([]); setLoading(false); return }
 
@@ -189,7 +189,7 @@ export default function App() {
 
         const { data: photos } = await db
           .from('photo_submissions')
-          .select('id, file_url, original_url, user_id, users(display_name)')
+          .select('id, file_url, original_url, caption, user_id, users(display_name)')
           .eq('objective_id', obj.id)
 
         let votes = []
@@ -206,6 +206,7 @@ export default function App() {
           userName: p.users?.display_name || '—',
           url:      noAutoRotateUrl(p.file_url || p.original_url || ''),
           urlOrig:  noAutoRotateUrl(p.original_url || p.file_url || ''),
+          caption:  p.caption || '',
         }))
 
         return { objective: obj, photos: mappedPhotos, votes, eligibleUsers }
@@ -213,13 +214,12 @@ export default function App() {
 
       setRawGeneral(objectiveData)
       setGeneralObjectives(objs)
-      setGeneralVoteFilter(VOTE_MODES.TOTS) // reset del filtre en recarregar la general
     } catch (err) {
       setError(err.message || 'Error desconegut')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isAdmin])
 
   useEffect(() => {
     if (view === 'general') loadGeneral()
@@ -238,7 +238,7 @@ export default function App() {
   // interns per soci, exactament com abans.
   const participants = useMemo(() => {
     if (!rawGeneral.length) return []
-    const effectiveMode = generalHasExpert ? generalVoteFilter : VOTE_MODES.TOTS
+    const effectiveMode = generalHasExpert ? voteFilter : VOTE_MODES.TOTS
 
     const userMap = {}
     for (const { objective, photos, votes, eligibleUsers } of rawGeneral) {
@@ -259,6 +259,7 @@ export default function App() {
         userMap[item.userId].reptes[objective.id] = {
           displayPoints: Math.floor(internalPoints),
           url: item.url, urlOrig: item.urlOrig, position: item.position,
+          caption: item.caption,
         }
       }
     }
@@ -272,7 +273,7 @@ export default function App() {
       list[i].generalPosition = genPos
     }
     return list
-  }, [rawGeneral, generalVoteFilter, generalHasExpert])
+  }, [rawGeneral, voteFilter, generalHasExpert])
 
   // ── RENDER ────────────────────────────────────────────────────────────────
   const selectedName = objectives.find(o => o.id === selectedId)?.name || ''
@@ -345,6 +346,7 @@ export default function App() {
         {!loading && !error && view === 'repte' && (
           <ResultsView
             data={allData}
+            repteName={selectedName}
             sortField={sortField}
             onSortChange={setSortField}
             voteFilter={voteFilter}
@@ -357,8 +359,8 @@ export default function App() {
           <GeneralTable
             participants={participants}
             objectives={generalObjectives}
-            voteFilter={generalVoteFilter}
-            onVoteFilterChange={setGeneralVoteFilter}
+            voteFilter={voteFilter}
+            onVoteFilterChange={setVoteFilter}
             hasExpert={generalHasExpert}
             onOpenLightbox={(url, caption) => setLightbox({ url, caption })}
           />

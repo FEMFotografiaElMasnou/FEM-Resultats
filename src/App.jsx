@@ -79,7 +79,9 @@ export default function App() {
   useEffect(() => {
     if (!loggedIn) return
     async function loadObjectives() {
-      let query = db.from('objectives').select('id, name').order('name')
+      // id és un timestamp Unix (ms) generat en donar d'alta el repte, per
+      // tant ordenar per id descendent = del repte més recent al més antic.
+      let query = db.from('objectives').select('id, name').order('id', { ascending: false })
       if (!isAdmin) query = query.eq('status', 'finished')
       const { data, error } = await query
       if (error || !data?.length) { setError(error?.message || 'Cap repte trobat'); return }

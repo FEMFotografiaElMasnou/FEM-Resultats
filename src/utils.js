@@ -139,6 +139,16 @@ export function hasEffectiveVotes(votes, eligibleIds) {
   return (votes || []).some(v => eligibleSet.has(v.user_id))
 }
 
+// Ordinal català curt per a posicions de rànquing (1r, 2n, 3r, 4t, 5è...).
+export function formatPosition(position) {
+  if (!position || position < 1) return '—'
+  if (position === 1) return '1r'
+  if (position === 2) return '2n'
+  if (position === 3) return '3r'
+  if (position === 4) return '4t'
+  return position + 'è'
+}
+
 export function rankByField(rows, field) {
   const sorted = [...rows].sort((a, b) => (b[field] ?? 0) - (a[field] ?? 0))
   let pos = 1

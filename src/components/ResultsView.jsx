@@ -80,7 +80,7 @@ function PhotoCard({ row, pos, repteName, onOpenLightbox }) {
   return (
     <div className="photo-card" style={{ animationDelay: `${(pos - 1) * 0.05}s` }}>
       <div className={`card-pos ${posClass}`}>{pos}</div>
-      <div className="card-thumb" onClick={() => onOpenLightbox(original, buildLightboxCaption(row.usuari, row.caption, repteName))}>
+      <div className="card-thumb" onClick={() => onOpenLightbox(original, buildLightboxCaption(row.usuari, row.caption, repteName), row.id)}>
         {thumb
           ? <img src={thumb} alt={row.usuari} loading="lazy" />
           : <div className="card-thumb-placeholder">📷</div>

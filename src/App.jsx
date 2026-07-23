@@ -171,6 +171,23 @@ export default function App() {
     return scorePhotos(rawResults.photos, rawResults.votes, ids)
   }, [rawResults, voteFilter, hasExpertResults])
 
+  // Nota + posició EN ELS TRES MODES A LA VEGADA (Tots/Socis/Expert), per a la
+  // cortineta de puntuació del Lightbox — a diferència d'`allData` (que només
+  // calcula el mode triat al desplegable), aquí es calculen sempre els tres
+  // perquè es puguin mostrar simultàniament sense refer consultes a Supabase.
+  const dataByMode = useMemo(() => {
+    if (!rawResults) return null
+    const build = mode => {
+      const ids = eligibleIdsForMode(rawResults.eligibleUsers, mode)
+      return rankByField(scorePhotos(rawResults.photos, rawResults.votes, ids), 'notaFinal')
+    }
+    return {
+      [VOTE_MODES.TOTS]:   build(VOTE_MODES.TOTS),
+      [VOTE_MODES.SOCIS]:  build(VOTE_MODES.SOCIS),
+      [VOTE_MODES.EXPERT]: build(VOTE_MODES.EXPERT),
+    }
+  }, [rawResults])
+
   // ── CARREGA CLASSIFICACIÓ GENERAL ─────────────────────────────────────────
   const loadGeneral = useCallback(async () => {
     setLoading(true)
@@ -354,7 +371,7 @@ export default function App() {
             voteFilter={voteFilter}
             onVoteFilterChange={setVoteFilter}
             hasExpert={hasExpertResults}
-            onOpenLightbox={(url, caption) => setLightbox({ url, caption })}
+            onOpenLightbox={(url, caption, photoId) => setLightbox({ url, caption, photoId })}
           />
         )}
         {!loading && !error && view === 'general' && (
@@ -373,6 +390,9 @@ export default function App() {
         <Lightbox
           url={lightbox.url}
           caption={lightbox.caption}
+          photoId={lightbox.photoId}
+          dataByMode={dataByMode}
+          hasExpert={hasExpertResults}
           onClose={() => setLightbox(null)}
         />
       )}
